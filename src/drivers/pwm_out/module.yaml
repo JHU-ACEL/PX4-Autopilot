@@ -32,4 +32,5 @@ actuator_output:
             100: PWM 100 Hz
             200: PWM 200 Hz
             400: PWM 400 Hz
+            2000: PWM 2 kHz
         reboot_required: true
