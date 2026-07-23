@@ -34,6 +34,7 @@
 #pragma once
 
 #include <px4_platform_common/px4_config.h>
+#include <drivers/drv_hrt.h>
 
 #include <uavcan/protocol/dynamic_node_id_server/centralized.hpp>
 #include <uavcan/protocol/file_server.hpp>

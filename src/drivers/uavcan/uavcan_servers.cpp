@@ -56,6 +56,9 @@
 #include <uavcan_posix/dynamic_node_id_server/file_storage_backend.hpp>
 #include <uavcan_posix/firmware_version_checker.hpp>
 
+static uint8_t _buffer[512]
+px4_cache_aligned_data() = {};
+
 /**
  * @file uavcan_servers.cpp
  *
@@ -104,11 +107,16 @@ int UavcanServers::init()
 	}
 
 	/* Initialize trace in the UAVCAN_NODE_DB_PATH directory */
-	ret = _tracer.init(UAVCAN_LOG_FILE);
+	int32_t trace_en = 1;
+	(void)param_get(param_find("UAVCAN_TRACE_EN"), &trace_en);
 
-	if (ret < 0) {
-		PX4_ERR("FileEventTracer init: %d, errno: %d", ret, errno);
-		return ret;
+	if (trace_en) {
+		ret = _tracer.init(UAVCAN_LOG_FILE);
+
+		if (ret < 0) {
+			PX4_ERR("FileEventTracer init: %d, errno: %d", ret, errno);
+			return ret;
+		}
 	}
 
 	/* hardware version */
@@ -136,6 +144,11 @@ int UavcanServers::init()
 	the SD card, as defined by the APDesc.
 	*/
 	migrateFWFromRoot(UAVCAN_FIRMWARE_PATH, UAVCAN_SD_ROOT_PATH);
+
+	/*
+	Check for firmware in the staging directory. Using a staging dir avoids concurrent write conflicts.
+	*/
+	migrateFWFromRoot(UAVCAN_FIRMWARE_PATH, UAVCAN_SD_STAGING_PATH);
 
 	/*  Start the Node   */
 	return 0;
@@ -225,7 +238,6 @@ void UavcanServers::migrateFWFromRoot(const char *sd_path, const char *sd_root_p
 int UavcanServers::copyFw(const char *dst, const char *src)
 {
 	int rv = 0;
-	uint8_t buffer[512] {};
 
 	int dfd = open(dst, O_WRONLY | O_CREAT, 0666);
 
@@ -245,7 +257,7 @@ int UavcanServers::copyFw(const char *dst, const char *src)
 	ssize_t size = 0;
 
 	do {
-		size = read(sfd, buffer, sizeof(buffer));
+		size = read(sfd, _buffer, sizeof(_buffer));
 
 		if (size < 0) {
 			PX4_ERR("copyFw: couldn't read");
@@ -258,7 +270,7 @@ int UavcanServers::copyFw(const char *dst, const char *src)
 			ssize_t written = 0;
 
 			do {
-				written = write(dfd, &buffer[total_written], remaining);
+				written = write(dfd, &_buffer[total_written], remaining);
 
 				if (written < 0) {
 					PX4_ERR("copyFw: couldn't write");
